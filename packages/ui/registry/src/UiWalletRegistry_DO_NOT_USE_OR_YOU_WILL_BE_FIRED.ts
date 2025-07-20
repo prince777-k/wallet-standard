@@ -1,14 +1,8 @@
 import type { IdentifierArray, Wallet } from '@wallet-standard/base';
 import type { UiWalletAccount, UiWallet } from '@wallet-standard/ui-core';
 
-import {
-    getOrCreateUiWalletAccountForStandardWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
-} from './UiWalletAccountRegistry_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.js';
-
-import {
-    registerWalletHandle_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
-} from './UiWalletHandleRegistry_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.js';
-
+import { getOrCreateUiWalletAccountForStandardWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIRED } from './UiWalletAccountRegistry_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.js';
+import { registerWalletHandle_DO_NOT_USE_OR_YOU_WILL_BE_FIRED } from './UiWalletHandleRegistry_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.js';
 import { identifierArraysAreDifferent } from './compare.js';
 
 const walletsToUiWallets = new WeakMap<Wallet, UiWallet>();
@@ -26,99 +20,86 @@ type Mutable<T> = { -readonly [P in keyof T]: T[P] };
 export function getOrCreateUiWalletForStandardWallet_DO_NOT_USE_OR_YOU_WILL_BE_FIRED<TWallet extends Wallet>(
     wallet: TWallet
 ): UiWallet {
-    let uiWallet = walletsToUiWallets.get(wallet) as Mutable<UiWallet> | undefined;
-    const mustInitialize = !uiWallet;
-    let isDirty = mustInitialize;
-
-    if (!uiWallet) {
-        uiWallet = {} as Mutable<UiWallet>;
-    }
-
-    function markDirty() {
+    const existingUiWallet = walletsToUiWallets.get(wallet);
+    const mustInitialize = !existingUiWallet;
+    let uiWallet: Mutable<UiWallet> = existingUiWallet ?? ({} as Mutable<UiWallet>);
+    let isDirty = !existingUiWallet;
+    function dirtyUiWallet() {
         if (!isDirty) {
-            uiWallet = { ...uiWallet };
+            uiWallet = { ...uiWallet } as Mutable<UiWallet>;
             isDirty = true;
         }
     }
-
-    const nextAccounts = {
+    const nextUiWalletAccounts = {
         _cache: [] as UiWalletAccount[],
-
         *[Symbol.iterator]() {
             if (this._cache.length) {
                 yield* this._cache;
             }
-
-            for (const account of wallet.accounts.slice(this._cache.length)) {
-                const uiAccount = getOrCreateUiWalletAccountForStandardWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(
-                    wallet,
-                    account
-                );
-                this._cache.push(uiAccount);
-                yield uiAccount;
+            for (const walletAccount of wallet.accounts.slice(this._cache.length)) {
+                const uiWalletAccount =
+                    getOrCreateUiWalletAccountForStandardWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(
+                        wallet,
+                        walletAccount
+                    );
+                this._cache.push(uiWalletAccount);
+                yield uiWalletAccount;
             }
         },
-
-        some(predicate: (account: UiWalletAccount) => boolean): boolean {
-            if (this._cache.some(predicate)) return true;
-
-            for (const account of wallet.accounts.slice(this._cache.length)) {
-                const uiAccount = getOrCreateUiWalletAccountForStandardWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(
-                    wallet,
-                    account
-                );
-                this._cache.push(uiAccount);
-                if (predicate(uiAccount)) return true;
+        some(predicateFn: (uiWalletAccount: UiWalletAccount) => boolean) {
+            if (this._cache.some(predicateFn)) {
+                return true;
             }
-
+            for (const walletAccount of wallet.accounts.slice(this._cache.length)) {
+                const uiWalletAccount =
+                    getOrCreateUiWalletAccountForStandardWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(
+                        wallet,
+                        walletAccount
+                    );
+                this._cache.push(uiWalletAccount);
+                if (predicateFn(uiWalletAccount)) {
+                    return true;
+                }
+            }
             return false;
         },
-
         get length() {
             return wallet.accounts.length;
         },
     };
-
-    // Sync accounts
     if (
         mustInitialize ||
         uiWallet.accounts.length !== wallet.accounts.length ||
-        nextAccounts.some((acc) => !uiWallet!.accounts.includes(acc))
+        nextUiWalletAccounts.some((account) => !uiWallet.accounts.includes(account))
     ) {
-        markDirty();
-        uiWallet.accounts = Object.freeze(Array.from(nextAccounts));
+        dirtyUiWallet();
+        uiWallet.accounts = Object.freeze(Array.from(nextUiWalletAccounts));
     }
-
-    // Sync features
-    const nextFeatures = Object.keys(wallet.features) as IdentifierArray;
-    if (mustInitialize || identifierArraysAreDifferent(uiWallet.features, nextFeatures)) {
-        markDirty();
-        uiWallet.features = Object.freeze(nextFeatures);
+    if (
+        mustInitialize ||
+        identifierArraysAreDifferent(uiWallet.features, Object.keys(wallet.features) as IdentifierArray)
+    ) {
+        dirtyUiWallet();
+        uiWallet.features = Object.freeze(Object.keys(wallet.features) as IdentifierArray);
     }
-
-    // Sync chains
     if (mustInitialize || identifierArraysAreDifferent(uiWallet.chains, wallet.chains)) {
-        markDirty();
+        dirtyUiWallet();
         uiWallet.chains = Object.freeze([...wallet.chains]);
     }
-
-    // Sync basic info
     if (
         mustInitialize ||
         uiWallet.icon !== wallet.icon ||
         uiWallet.name !== wallet.name ||
         uiWallet.version !== wallet.version
     ) {
-        markDirty();
+        dirtyUiWallet();
         uiWallet.icon = wallet.icon;
         uiWallet.name = wallet.name;
         uiWallet.version = wallet.version;
     }
-
     if (isDirty) {
         walletsToUiWallets.set(wallet, uiWallet);
         registerWalletHandle_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(uiWallet, wallet);
     }
-
     return Object.freeze(uiWallet);
 }
