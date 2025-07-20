@@ -37,7 +37,7 @@ export function getWalletAccountForUiWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIR
     uiWalletAccount: UiWalletAccount
 ): WalletAccount {
     const wallet = getWalletForHandle_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(uiWalletAccount);
-    const account = wallet.accounts.find(({ address }) => address === uiWalletAccount.address);
+    const account = wallet.accounts.find(({ address }: { address: string }) => address === uiWalletAccount.address);
     if (!account) {
         const err = new WalletStandardError(WALLET_STANDARD_ERROR__REGISTRY__WALLET_ACCOUNT_NOT_FOUND, {
             address: uiWalletAccount.address,
