@@ -2,6 +2,7 @@ import type { Wallet, WalletAccount } from '@wallet-standard/base';
 import {
     WALLET_STANDARD_ERROR__REGISTRY__WALLET_ACCOUNT_NOT_FOUND,
     WALLET_STANDARD_ERROR__REGISTRY__WALLET_NOT_FOUND,
+    WALLET_STANDARD_ERROR__FEATURES__WALLET_FEATURE_UNIMPLEMENTED,
     WalletStandardError,
     safeCaptureStackTrace,
 } from '@wallet-standard/errors';
@@ -80,4 +81,29 @@ export function getWalletAccountForUiWalletAccount_DO_NOT_USE_OR_YOU_WILL_BE_FIR
     }
     
     return account;
+}
+
+/**
+ * Returns the feature object from the Wallet Standard `Wallet` that underlies a
+ * `UiWalletHandle`. In the event that the wallet does not support the feature,
+ * a `WalletStandardError` will be thrown.
+ */
+export function getWalletFeature<TUiWalletHandle extends UiWalletHandle>(
+    uiWalletHandle: TUiWalletHandle,
+    featureName: TUiWalletHandle['features'][number]
+): unknown {
+    const wallet = getWalletForHandle_DO_NOT_USE_OR_YOU_WILL_BE_FIRED(uiWalletHandle);
+    
+    if (!uiWalletHandle.features.includes(featureName)) {
+        const err = new WalletStandardError(WALLET_STANDARD_ERROR__FEATURES__WALLET_FEATURE_UNIMPLEMENTED, {
+            featureName,
+            supportedChains: [...wallet.chains],
+            supportedFeatures: [...uiWalletHandle.features],
+            walletName: wallet.name,
+        });
+        safeCaptureStackTrace(err, getWalletFeature);
+        throw err;
+    }
+    
+    return wallet.features[featureName];
 }
