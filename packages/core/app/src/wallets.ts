@@ -5,19 +5,49 @@ import type {
     WalletEventsWindow,
     WindowAppReadyEvent,
     WindowAppReadyEventAPI,
+    WindowRegisterWalletEvent,
 } from '@wallet-standard/base';
 
+// Global state management
 let wallets: Wallets | undefined = undefined;
 const registeredWalletsSet = new Set<Wallet>();
-function addRegisteredWallet(wallet: Wallet) {
+let cachedWalletsArray: readonly Wallet[] | undefined;
+
+// Event listeners registry
+const listeners: { [E in WalletsEventNames]?: WalletsEventsListeners[E][] } = {};
+
+/**
+ * Adds a wallet to the registered wallets set and invalidates the cache.
+ * 
+ * @param wallet - The wallet to add to the registered set.
+ */
+function addRegisteredWallet(wallet: Wallet): void {
     cachedWalletsArray = undefined;
     registeredWalletsSet.add(wallet);
 }
-function removeRegisteredWallet(wallet: Wallet) {
+
+/**
+ * Removes a wallet from the registered wallets set and invalidates the cache.
+ * 
+ * @param wallet - The wallet to remove from the registered set.
+ */
+function removeRegisteredWallet(wallet: Wallet): void {
     cachedWalletsArray = undefined;
     registeredWalletsSet.delete(wallet);
 }
-const listeners: { [E in WalletsEventNames]?: WalletsEventsListeners[E][] } = {};
+
+/**
+ * Safely executes a callback function and logs any errors.
+ * 
+ * @param callback - The function to execute safely.
+ */
+function guard(callback: () => void): void {
+    try {
+        callback();
+    } catch (error) {
+        console.error('Error in wallet event callback:', error);
+    }
+}
 
 /**
  * Get an API for {@link Wallets.get | getting}, {@link Wallets.on | listening for}, and
@@ -40,17 +70,24 @@ const listeners: { [E in WalletsEventNames]?: WalletsEventsListeners[E][] } = {}
  */
 export function getWallets(): Wallets {
     if (wallets) return wallets;
+    
     wallets = Object.freeze({ register, get, on });
+    
     if (typeof window === 'undefined') return wallets;
 
     const api = Object.freeze({ register });
+    
+    // Listen for wallet registration events
     try {
-        (window as WalletEventsWindow).addEventListener('wallet-standard:register-wallet', ({ detail: callback }) =>
-            callback(api)
-        );
+        (window as WalletEventsWindow).addEventListener('wallet-standard:register-wallet', (event: WindowRegisterWalletEvent) => {
+            const callback = event.detail;
+            guard(() => callback(api));
+        });
     } catch (error) {
         console.error('wallet-standard:register-wallet event listener could not be added\n', error);
     }
+    
+    // Dispatch app ready event
     try {
         (window as WalletEventsWindow).dispatchEvent(new AppReadyEvent(api));
     } catch (error) {
@@ -140,25 +177,44 @@ export type WalletsEventNames = keyof WalletsEventsListeners;
  */
 export type WalletsEvents = WalletsEventsListeners;
 
+/**
+ * Registers wallets and returns an unregister function.
+ * 
+ * Filters out wallets that have already been registered to prevent duplicates.
+ * 
+ * @param wallets - The wallets to register.
+ * @returns A function that unregisters the registered wallets.
+ */
 function register(...wallets: Wallet[]): () => void {
     // Filter out wallets that have already been registered.
     // This prevents the same wallet from being registered twice, but it also prevents wallets from being
     // unregistered by reusing a reference to the wallet to obtain the unregister function for it.
-    wallets = wallets.filter((wallet) => !registeredWalletsSet.has(wallet));
+    const newWallets = wallets.filter((wallet) => !registeredWalletsSet.has(wallet));
+    
     // If there are no new wallets to register, just return a no-op unregister function.
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    if (!wallets.length) return () => {};
+    if (!newWallets.length) {
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        return () => {};
+    }
 
-    wallets.forEach((wallet) => addRegisteredWallet(wallet));
-    listeners['register']?.forEach((listener) => guard(() => listener(...wallets)));
+    // Register the new wallets
+    newWallets.forEach((wallet) => addRegisteredWallet(wallet));
+    
+    // Notify listeners about registration
+    listeners['register']?.forEach((listener) => guard(() => listener(...newWallets)));
+    
     // Return a function that unregisters the registered wallets.
     return function unregister(): void {
-        wallets.forEach((wallet) => removeRegisteredWallet(wallet));
-        listeners['unregister']?.forEach((listener) => guard(() => listener(...wallets)));
+        newWallets.forEach((wallet) => removeRegisteredWallet(wallet));
+        listeners['unregister']?.forEach((listener) => guard(() => listener(...newWallets)));
     };
 }
 
-let cachedWalletsArray: readonly Wallet[] | undefined;
+/**
+ * Gets all registered wallets with caching for performance.
+ * 
+ * @returns A readonly array of all registered wallets.
+ */
 function get(): readonly Wallet[] {
     if (!cachedWalletsArray) {
         cachedWalletsArray = [...registeredWalletsSet];
@@ -166,33 +222,53 @@ function get(): readonly Wallet[] {
     return cachedWalletsArray;
 }
 
+/**
+ * Adds an event listener and returns a function to remove it.
+ * 
+ * @param event - The event type to listen for.
+ * @param listener - The listener function to call when the event occurs.
+ * @returns A function that removes the event listener.
+ */
 function on<E extends WalletsEventNames>(event: E, listener: WalletsEventsListeners[E]): () => void {
-    listeners[event]?.push(listener) || (listeners[event] = [listener]);
+    if (!listeners[event]) {
+        listeners[event] = [];
+    }
+    listeners[event]!.push(listener);
+    
     // Return a function that removes the event listener.
     return function off(): void {
         listeners[event] = listeners[event]?.filter((existingListener) => listener !== existingListener);
     };
 }
 
-function guard(callback: () => void) {
-    try {
-        callback();
-    } catch (error) {
-        console.error(error);
-    }
-}
-
+/**
+ * Custom event class for app ready notifications.
+ * 
+ * Implements the {@link WindowAppReadyEvent} interface and provides
+ * the API for wallet registration.
+ */
 class AppReadyEvent extends Event implements WindowAppReadyEvent {
     readonly #detail: WindowAppReadyEventAPI;
 
-    get detail() {
+    /**
+     * Gets the API for wallet registration.
+     */
+    get detail(): WindowAppReadyEventAPI {
         return this.#detail;
     }
 
-    get type() {
-        return 'wallet-standard:app-ready' as const;
+    /**
+     * Gets the event type.
+     */
+    get type(): 'wallet-standard:app-ready' {
+        return 'wallet-standard:app-ready';
     }
 
+    /**
+     * Creates a new AppReadyEvent.
+     * 
+     * @param api - The API for wallet registration.
+     */
     constructor(api: WindowAppReadyEventAPI) {
         super('wallet-standard:app-ready', {
             bubbles: false,
@@ -202,30 +278,46 @@ class AppReadyEvent extends Event implements WindowAppReadyEvent {
         this.#detail = api;
     }
 
-    /** @deprecated */
+    /**
+     * @deprecated This method cannot be called on this event type.
+     * @throws {Error} Always throws an error when called.
+     */
     preventDefault(): never {
-        throw new Error('preventDefault cannot be called');
+        throw new Error('preventDefault cannot be called on wallet-standard:app-ready events');
     }
 
-    /** @deprecated */
+    /**
+     * @deprecated This method cannot be called on this event type.
+     * @throws {Error} Always throws an error when called.
+     */
     stopImmediatePropagation(): never {
-        throw new Error('stopImmediatePropagation cannot be called');
+        throw new Error('stopImmediatePropagation cannot be called on wallet-standard:app-ready events');
     }
 
-    /** @deprecated */
+    /**
+     * @deprecated This method cannot be called on this event type.
+     * @throws {Error} Always throws an error when called.
+     */
     stopPropagation(): never {
-        throw new Error('stopPropagation cannot be called');
+        throw new Error('stopPropagation cannot be called on wallet-standard:app-ready events');
     }
 }
 
 /**
  * @deprecated Use {@link getWallets} instead.
+ * 
+ * This function provides backward compatibility with the legacy wallet discovery
+ * mechanism using window.navigator.wallets.
+ *
+ * @return API for getting, listening for, and registering Wallets.
  *
  * @group Deprecated
  */
 export function DEPRECATED_getWallets(): Wallets {
     if (wallets) return wallets;
+    
     wallets = getWallets();
+    
     if (typeof window === 'undefined') return wallets;
 
     const callbacks = (window as DEPRECATED_WalletsWindow).navigator.wallets || [];
@@ -237,6 +329,7 @@ export function DEPRECATED_getWallets(): Wallets {
     const { register } = wallets;
     const push = (...callbacks: DEPRECATED_WalletsCallback[]): void =>
         callbacks.forEach((callback) => guard(() => callback({ register })));
+    
     try {
         Object.defineProperty((window as DEPRECATED_WalletsWindow).navigator, 'wallets', {
             value: Object.freeze({ push }),
