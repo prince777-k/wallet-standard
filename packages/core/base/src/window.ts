@@ -1,86 +1,126 @@
 import type { Wallet } from './wallet.js';
 
+// =============================================================================
+// EVENT TYPES AND CONSTANTS
+// =============================================================================
+
 /**
- * Global `window` type for dispatching and listening for {@link WindowAppReadyEvent} and {@link WindowRegisterWalletEvent}.
- *
- * ```ts
- * import { WalletEventsWindow } from '@wallet-standard/base';
- *
- * declare const window: WalletEventsWindow;
- * // OR
- * (window as WalletEventsWindow)
- * ```
- *
- * @group Window
+ * Event type constants for wallet standard events.
+ * 
+ * @group Event Types
  */
-export interface WalletEventsWindow extends Omit<Window, 'addEventListener' | 'dispatchEvent'> {
-    /** Add a listener for {@link WindowAppReadyEvent}. */
-    addEventListener(type: WindowAppReadyEventType, listener: (event: WindowAppReadyEvent) => void): void;
-    /** Add a listener for {@link WindowRegisterWalletEvent}. */
-    addEventListener(type: WindowRegisterWalletEventType, listener: (event: WindowRegisterWalletEvent) => void): void;
-    /** Dispatch a {@link WindowAppReadyEvent}. */
-    dispatchEvent(event: WindowAppReadyEvent): void;
-    /** Dispatch a {@link WindowRegisterWalletEvent}. */
-    dispatchEvent(event: WindowRegisterWalletEvent): void;
+export const WALLET_EVENT_TYPES = {
+    /** Event dispatched when the app is ready to register wallets. */
+    APP_READY: 'wallet-standard:app-ready',
+    /** Event dispatched when a wallet is ready to be registered. */
+    REGISTER_WALLET: 'wallet-standard:register-wallet',
+} as const;
+
+/**
+ * Type-safe event type constants.
+ * 
+ * @group Event Types
+ */
+export type WalletEventType = typeof WALLET_EVENT_TYPES[keyof typeof WALLET_EVENT_TYPES];
+
+// =============================================================================
+// CORE EVENT INTERFACES
+// =============================================================================
+
+/**
+ * Base interface for wallet standard custom events that cannot be prevented or stopped.
+ * 
+ * This ensures wallet registration events are always processed, preventing
+ * malicious code from blocking wallet discovery.
+ * 
+ * @internal
+ * @group Internal
+ */
+export interface UnstoppableCustomEvent<T extends string, D> extends Event {
+    /** Type of the event. */
+    readonly type: T;
+    /** Data attached to the event. */
+    readonly detail: D;
+    /** @deprecated Cannot prevent default - throws error if called. */
+    preventDefault(): never;
+    /** @deprecated Cannot stop immediate propagation - throws error if called. */
+    stopImmediatePropagation(): never;
+    /** @deprecated Cannot stop propagation - throws error if called. */
+    stopPropagation(): never;
 }
 
+// =============================================================================
+// APP READY EVENT SYSTEM
+// =============================================================================
+
 /**
- * Type of {@link WindowAppReadyEvent}.
- *
+ * Type of the app ready event.
+ * 
  * @group App Ready Event
  */
-export type WindowAppReadyEventType = 'wallet-standard:app-ready';
+export type WindowAppReadyEventType = typeof WALLET_EVENT_TYPES.APP_READY;
 
-/** Interface that will be provided to {@link Wallet | Wallets} by the app when the app calls the
- * {@link WindowRegisterWalletEventCallback} provided by Wallets.
- *
- * Wallets must call the {@link WindowAppReadyEventAPI.register | register} method to register themselves.
- *
+/**
+ * API provided to wallets by the app when the app is ready to register wallets.
+ * 
+ * Wallets must call the {@link WindowAppReadyEventAPI.register | register} method
+ * to register themselves with the app.
+ * 
  * @group App Ready Event
  */
 export interface WindowAppReadyEventAPI {
     /**
-     * Register a {@link Wallet} with the app.
-     *
-     * @return
-     * `unregister` function to programmatically unregister the Wallet.
-     *
-     * Wallets generally do not need to, and should not, call this.
+     * Register a wallet with the app.
+     * 
+     * @param wallet - The wallet to register.
+     * @returns An unregister function to programmatically unregister the wallet.
+     * 
+     * @example
+     * ```typescript
+     * const unregister = api.register(myWallet);
+     * // Later...
+     * unregister(); // Unregister the wallet
+     * ```
      */
     register(wallet: Wallet): () => void;
 }
 
 /**
- * Event that will be dispatched by the app on the `window` when the app is ready to register {@link Wallet | Wallets}.
- *
- * Wallets must listen for this event, and {@link WindowAppReadyEventAPI.register register} themselves when the event is
- * dispatched.
- *
+ * Event dispatched by the app when it's ready to register wallets.
+ * 
+ * Wallets must listen for this event and register themselves when it's dispatched.
+ * This ensures wallets are registered as soon as the app is ready, regardless
+ * of whether the wallet loads before or after the app.
+ * 
  * @group App Ready Event
  */
 export type WindowAppReadyEvent = UnstoppableCustomEvent<WindowAppReadyEventType, WindowAppReadyEventAPI>;
 
-/**
- * Type of {@link WindowRegisterWalletEvent}.
- *
- * @group Register Wallet Event
- */
-export type WindowRegisterWalletEventType = 'wallet-standard:register-wallet';
+// =============================================================================
+// WALLET REGISTRATION EVENT SYSTEM
+// =============================================================================
 
 /**
- * Callback function provided by {@link Wallet | Wallets} to be called by the app when the app is ready to register
- * Wallets.
- *
+ * Type of the wallet registration event.
+ * 
+ * @group Register Wallet Event
+ */
+export type WindowRegisterWalletEventType = typeof WALLET_EVENT_TYPES.REGISTER_WALLET;
+
+/**
+ * Callback function provided by wallets to be called by the app when ready to register.
+ * 
  * @group Register Wallet Event
  */
 export type WindowRegisterWalletEventCallback = (api: WindowAppReadyEventAPI) => void;
 
 /**
- * Event that will be dispatched on the `window` by each {@link Wallet | Wallet} when the Wallet is ready to be
- * registered by the app.
- *
- * The app must listen for this event, and register Wallets when the event is dispatched.
- *
+ * Event dispatched by wallets when they're ready to be registered by the app.
+ * 
+ * The app must listen for this event and register wallets when it's dispatched.
+ * This ensures wallets are registered as soon as they're ready, regardless
+ * of whether the app loads before or after the wallet.
+ * 
  * @group Register Wallet Event
  */
 export type WindowRegisterWalletEvent = UnstoppableCustomEvent<
@@ -88,9 +128,54 @@ export type WindowRegisterWalletEvent = UnstoppableCustomEvent<
     WindowRegisterWalletEventCallback
 >;
 
+// =============================================================================
+// WINDOW INTERFACE EXTENSIONS
+// =============================================================================
+
+/**
+ * Extended window interface for wallet standard event handling.
+ * 
+ * Provides type-safe event listeners and dispatchers for wallet registration events.
+ * 
+ * @example
+ * ```typescript
+ * import { WalletEventsWindow } from '@wallet-standard/base';
+ * 
+ * declare const window: WalletEventsWindow;
+ * 
+ * // Listen for app ready events
+ * window.addEventListener('wallet-standard:app-ready', ({ detail: api }) => {
+ *   api.register(myWallet);
+ * });
+ * 
+ * // Listen for wallet registration events
+ * window.addEventListener('wallet-standard:register-wallet', ({ detail: callback }) => {
+ *   callback({ register: (wallet) => registerWallet(wallet) });
+ * });
+ * ```
+ * 
+ * @group Window
+ */
+export interface WalletEventsWindow extends Omit<Window, 'addEventListener' | 'dispatchEvent'> {
+    /** Add a listener for app ready events. */
+    addEventListener(type: WindowAppReadyEventType, listener: (event: WindowAppReadyEvent) => void): void;
+    /** Add a listener for wallet registration events. */
+    addEventListener(type: WindowRegisterWalletEventType, listener: (event: WindowRegisterWalletEvent) => void): void;
+    /** Dispatch an app ready event. */
+    dispatchEvent(event: WindowAppReadyEvent): void;
+    /** Dispatch a wallet registration event. */
+    dispatchEvent(event: WindowRegisterWalletEvent): void;
+}
+
+// =============================================================================
+// DEPRECATED INTERFACES
+// =============================================================================
+
 /**
  * @deprecated Use {@link WalletEventsWindow} instead.
- *
+ * 
+ * Legacy window interface for backward compatibility.
+ * 
  * @group Deprecated
  */
 export interface DEPRECATED_WalletsWindow extends Window {
@@ -99,7 +184,9 @@ export interface DEPRECATED_WalletsWindow extends Window {
 
 /**
  * @deprecated Use {@link WalletEventsWindow} instead.
- *
+ * 
+ * Legacy navigator interface for backward compatibility.
+ * 
  * @group Deprecated
  */
 export interface DEPRECATED_WalletsNavigator extends Navigator {
@@ -108,7 +195,9 @@ export interface DEPRECATED_WalletsNavigator extends Navigator {
 
 /**
  * @deprecated Use {@link WalletEventsWindow} instead.
- *
+ * 
+ * Legacy wallets interface for backward compatibility.
+ * 
  * @group Deprecated
  */
 export interface DEPRECATED_Wallets {
@@ -117,32 +206,9 @@ export interface DEPRECATED_Wallets {
 
 /**
  * @deprecated Use {@link WalletEventsWindow} instead.
- *
+ * 
+ * Legacy callback type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type DEPRECATED_WalletsCallback = (wallets: { register(...wallets: Wallet[]): () => void }) => void;
-
-/**
- * @internal
- *
- * A custom event that cannot have its default behavior prevented or its propagation stopped.
- *
- * This is an internal type, extended by {@link WindowAppReadyEvent} and {@link WindowRegisterWalletEvent}.
- *
- * [`window.CustomEvent`](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent/CustomEvent) is not used because
- * Node.js doesn't have it, but this interface is compatible with it.
- *
- * @group Internal
- */
-export interface UnstoppableCustomEvent<T extends string, D> extends Event {
-    /** Type of the event. */
-    readonly type: T;
-    /** Data attached to the event. */
-    readonly detail: D;
-    /** @deprecated Does nothing and throws an error if called. */
-    preventDefault(): never;
-    /** @deprecated Does nothing and throws an error if called. */
-    stopImmediatePropagation(): never;
-    /** @deprecated Does nothing and throws an error if called. */
-    stopPropagation(): never;
-}
