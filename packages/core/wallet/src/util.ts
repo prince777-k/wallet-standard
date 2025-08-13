@@ -92,6 +92,9 @@ export function arraysEqual<T>(a: Indexed<T>, b: Indexed<T>): boolean {
     return true;
 }
 
+
+
+
 /**
  * Efficiently compare byte arrays, using {@link arraysEqual}.
  *
