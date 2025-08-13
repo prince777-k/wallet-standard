@@ -217,9 +217,9 @@ function register(...wallets: Wallet[]): () => void {
  */
 function get(): readonly Wallet[] {
     if (!cachedWalletsArray) {
-        cachedWalletsArray = [...registeredWalletsSet];
+        cachedWalletsArray = Object.freeze([...registeredWalletsSet]);
     }
-    return cachedWalletsArray;
+    return cachedWalletsArray!;
 }
 
 /**
@@ -270,7 +270,7 @@ class AppReadyEvent extends Event implements WindowAppReadyEvent {
      * @param api - The API for wallet registration.
      */
     constructor(api: WindowAppReadyEventAPI) {
-        super('wallet-standard:app-ready', {
+        super(APP_READY_EVENT, {
             bubbles: false,
             cancelable: false,
             composed: false,
