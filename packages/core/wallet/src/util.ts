@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import type { ReadonlyUint8Array, WalletAccount } from '@wallet-standard/base';
 
 /**
@@ -209,5 +210,7 @@ export function walletAccountsEqual(a?: WalletAccount, b?: WalletAccount): boole
         a.icon === b.icon
     );
 }
+=======
+>>>>>>> d260d21ace9554d27b50dccc45fc22707b2b844b
 =======
 >>>>>>> d260d21ace9554d27b50dccc45fc22707b2b844b

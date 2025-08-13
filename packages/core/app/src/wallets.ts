@@ -8,6 +8,7 @@ import type {
     WindowRegisterWalletEvent,
 } from '@wallet-standard/base';
 
+// Global state management
 let wallets: Wallets | undefined = undefined;
 const registeredWalletsSet = new Set<Wallet>();
 let cachedWalletsArray: readonly Wallet[] | undefined;
@@ -34,7 +35,19 @@ function removeRegisteredWallet(wallet: Wallet): void {
     cachedWalletsArray = undefined;
     registeredWalletsSet.delete(wallet);
 }
-const listeners: { [E in WalletsEventNames]?: WalletsEventsListeners[E][] } = {};
+
+/**
+ * Safely executes a callback function and logs any errors.
+ * 
+ * @param callback - The function to execute safely.
+ */
+function guard(callback: () => void): void {
+    try {
+        callback();
+    } catch (error) {
+        console.error('Error in wallet event callback:', error);
+    }
+}
 
 /**
  * Get an API for {@link Wallets.get | getting}, {@link Wallets.on | listening for}, and
@@ -66,9 +79,10 @@ export function getWallets(): Wallets {
     
     // Listen for wallet registration events
     try {
-        (window as WalletEventsWindow).addEventListener('wallet-standard:register-wallet', ({ detail: callback }) =>
-            callback(api)
-        );
+        (window as WalletEventsWindow).addEventListener('wallet-standard:register-wallet', (event: WindowRegisterWalletEvent) => {
+            const callback = event.detail;
+            guard(() => callback(api));
+        });
     } catch (error) {
         console.error('wallet-standard:register-wallet event listener could not be added\n', error);
     }
@@ -183,12 +197,16 @@ function register(...wallets: Wallet[]): () => void {
         return () => {};
     }
 
-    wallets.forEach((wallet) => addRegisteredWallet(wallet));
-    listeners['register']?.forEach((listener) => guard(() => listener(...wallets)));
+    // Register the new wallets
+    newWallets.forEach((wallet) => addRegisteredWallet(wallet));
+    
+    // Notify listeners about registration
+    listeners['register']?.forEach((listener) => guard(() => listener(...newWallets)));
+    
     // Return a function that unregisters the registered wallets.
     return function unregister(): void {
-        wallets.forEach((wallet) => removeRegisteredWallet(wallet));
-        listeners['unregister']?.forEach((listener) => guard(() => listener(...wallets)));
+        newWallets.forEach((wallet) => removeRegisteredWallet(wallet));
+        listeners['unregister']?.forEach((listener) => guard(() => listener(...newWallets)));
     };
 }
 
@@ -239,8 +257,11 @@ class AppReadyEvent extends Event implements WindowAppReadyEvent {
         return this.#detail;
     }
 
-    get type() {
-        return 'wallet-standard:app-ready' as const;
+    /**
+     * Gets the event type.
+     */
+    get type(): 'wallet-standard:app-ready' {
+        return 'wallet-standard:app-ready';
     }
 
     /**
