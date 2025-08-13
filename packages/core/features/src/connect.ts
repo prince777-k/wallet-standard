@@ -1,98 +1,185 @@
 import type { WalletAccount } from '@wallet-standard/base';
 
-/** Name of the feature. */
+// =============================================================================
+// FEATURE CONSTANTS AND TYPES
+// =============================================================================
+
+/**
+ * Standard connect feature identifier.
+ * 
+ * This feature allows apps to obtain authorization to use wallet accounts.
+ * 
+ * @group Connect Feature
+ */
 export const StandardConnect = 'standard:connect';
+
+/**
+ * Version of the standard connect feature.
+ * 
+ * @group Connect Feature
+ */
+export type StandardConnectVersion = '1.0.0';
+
+// =============================================================================
+// CORE FEATURE INTERFACE
+// =============================================================================
+
+/**
+ * Standard connect feature implementation.
+ * 
+ * This feature allows the app to obtain authorization to use wallet accounts.
+ * The wallet may prompt the user for permission or return previously authorized accounts.
+ * 
+ * @example
+ * ```typescript
+ * const wallet: WalletWithFeatures<StandardConnectFeature> = {
+ *   // ... other wallet properties
+ *   features: {
+ *     'standard:connect': {
+ *       version: '1.0.0',
+ *       connect: async (input) => {
+ *         const accounts = await requestUserPermission();
+ *         return { accounts };
+ *       }
+ *     }
+ *   }
+ * };
+ * ```
+ * 
+ * @group Connect Feature
+ */
+export type StandardConnectFeature = {
+    /** Standard connect feature implementation. */
+    readonly [StandardConnect]: {
+        /** Version of the feature implemented by the wallet. */
+        readonly version: StandardConnectVersion;
+        /** Method to request account authorization. */
+        readonly connect: StandardConnectMethod;
+    };
+};
+
+// =============================================================================
+// METHOD AND I/O TYPES
+// =============================================================================
+
+/**
+ * Method to request account authorization from the wallet.
+ * 
+ * @param input - Optional input parameters for the connect request.
+ * @returns Promise resolving to the connect output with authorized accounts.
+ * 
+ * @group Connect Method
+ */
+export type StandardConnectMethod = (input?: StandardConnectInput) => Promise<StandardConnectOutput>;
+
+/**
+ * Input parameters for the connect method.
+ * 
+ * @group Connect Input
+ */
+export interface StandardConnectInput {
+    /**
+     * Silent mode flag for authorization requests.
+     * 
+     * By default, the connect method should prompt the user to request authorization.
+     * Set this flag to `true` to request accounts that have already been authorized
+     * without prompting the user.
+     * 
+     * This flag is optional and wallets may or may not use it. Apps should not
+     * depend on this flag being honored by all wallets.
+     * 
+     * @example
+     * ```typescript
+     * // Request previously authorized accounts without prompting
+     * const result = await wallet.features['standard:connect'].connect({ silent: true });
+     * 
+     * // Request accounts with user prompt (default behavior)
+     * const result = await wallet.features['standard:connect'].connect();
+     * ```
+     */
+    readonly silent?: boolean;
+}
+
+/**
+ * Output from the connect method.
+ * 
+ * Contains the list of accounts that the app has been authorized to use.
+ * 
+ * @group Connect Output
+ */
+export interface StandardConnectOutput {
+    /**
+     * List of accounts that the app has been authorized to use.
+     * 
+     * These accounts can be used for signing transactions, messages, and other
+     * wallet operations that the wallet supports.
+     * 
+     * @example
+     * ```typescript
+     * const { accounts } = await wallet.features['standard:connect'].connect();
+     * console.log(`Authorized ${accounts.length} accounts`);
+     * accounts.forEach(account => {
+     *   console.log(`Account: ${account.address}`);
+     * });
+     * ```
+     */
+    readonly accounts: readonly WalletAccount[];
+}
+
+// =============================================================================
+// DEPRECATED ALIASES
+// =============================================================================
+
 /**
  * @deprecated Use {@link StandardConnect} instead.
- *
+ * 
+ * Legacy feature identifier for backward compatibility.
+ * 
  * @group Deprecated
  */
 export const Connect = StandardConnect;
 
 /**
- * `standard:connect` is a {@link "@wallet-standard/base".Wallet.features | feature} that may be implemented by a
- * {@link "@wallet-standard/base".Wallet} to allow the app to obtain authorization to use
- * {@link "@wallet-standard/base".Wallet.accounts}.
- *
- * @group Connect
- */
-export type StandardConnectFeature = {
-    /** Name of the feature. */
-    readonly [StandardConnect]: {
-        /** Version of the feature implemented by the Wallet. */
-        readonly version: StandardConnectVersion;
-        /** Method to call to use the feature. */
-        readonly connect: StandardConnectMethod;
-    };
-};
-/**
  * @deprecated Use {@link StandardConnectFeature} instead.
- *
+ * 
+ * Legacy feature type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type ConnectFeature = StandardConnectFeature;
 
 /**
- * Version of the {@link StandardConnectFeature} implemented by a {@link "@wallet-standard/base".Wallet}.
- *
- * @group Connect
- */
-export type StandardConnectVersion = '1.0.0';
-/**
  * @deprecated Use {@link StandardConnectVersion} instead.
- *
+ * 
+ * Legacy version type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type ConnectVersion = StandardConnectVersion;
 
 /**
- * Method to call to use the {@link StandardConnectFeature}.
- *
- * @group Connect
- */
-export type StandardConnectMethod = (input?: StandardConnectInput) => Promise<StandardConnectOutput>;
-/**
  * @deprecated Use {@link StandardConnectMethod} instead.
- *
+ * 
+ * Legacy method type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type ConnectMethod = StandardConnectMethod;
 
 /**
- * Input for the {@link StandardConnectMethod}.
- *
- * @group Connect
- */
-export interface StandardConnectInput {
-    /**
-     * By default, using the {@link StandardConnectFeature} should prompt the user to request authorization to accounts.
-     * Set the `silent` flag to `true` to request accounts that have already been authorized without prompting.
-     *
-     * This flag may or may not be used by the Wallet and the app should not depend on it being used.
-     * If this flag is used by the Wallet, the Wallet should not prompt the user, and should return only the accounts
-     * that the app is authorized to use.
-     */
-    readonly silent?: boolean;
-}
-/**
  * @deprecated Use {@link StandardConnectInput} instead.
- *
+ * 
+ * Legacy input type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type ConnectInput = StandardConnectInput;
 
 /**
- * Output of the {@link StandardConnectMethod}.
- *
- * @group Connect
- */
-export interface StandardConnectOutput {
-    /** List of accounts in the {@link "@wallet-standard/base".Wallet} that the app has been authorized to use. */
-    readonly accounts: readonly WalletAccount[];
-}
-/**
  * @deprecated Use {@link StandardConnectOutput} instead.
- *
+ * 
+ * Legacy output type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type ConnectOutput = StandardConnectOutput;

@@ -1,143 +1,256 @@
 import type { Wallet } from '@wallet-standard/base';
 
-/** Name of the feature. */
-export const StandardEvents = 'standard:events';
-/**
- * @deprecated Use {@link StandardEvents} instead.
- *
- * @group Deprecated
- */
-export const Events = StandardEvents;
+// =============================================================================
+// FEATURE CONSTANTS AND TYPES
+// =============================================================================
 
 /**
- * `standard:events` is a {@link "@wallet-standard/base".Wallet.features | feature} that may be implemented by a
- * {@link "@wallet-standard/base".Wallet} to allow the app to add an event listener and subscribe to events emitted by
- * the Wallet when properties of the Wallet {@link StandardEventsListeners.change}.
- *
- * @group Events
+ * Standard events feature identifier.
+ * 
+ * This feature allows apps to subscribe to wallet property changes.
+ * 
+ * @group Events Feature
+ */
+export const StandardEvents = 'standard:events';
+
+/**
+ * Version of the standard events feature.
+ * 
+ * @group Events Feature
+ */
+export type StandardEventsVersion = '1.0.0';
+
+// =============================================================================
+// CORE FEATURE INTERFACE
+// =============================================================================
+
+/**
+ * Standard events feature implementation.
+ * 
+ * This feature allows the app to subscribe to events emitted by the wallet
+ * when properties of the wallet change.
+ * 
+ * @example
+ * ```typescript
+ * const wallet: WalletWithFeatures<StandardEventsFeature> = {
+ *   // ... other wallet properties
+ *   features: {
+ *     'standard:events': {
+ *       version: '1.0.0',
+ *       on: (event, listener) => {
+ *         // Add listener to internal event system
+ *         addListener(event, listener);
+ *         // Return unsubscribe function
+ *         return () => removeListener(event, listener);
+ *       }
+ *     }
+ *   }
+ * };
+ * ```
+ * 
+ * @group Events Feature
  */
 export type StandardEventsFeature = {
-    /** Name of the feature. */
+    /** Standard events feature implementation. */
     readonly [StandardEvents]: {
-        /** Version of the feature implemented by the {@link "@wallet-standard/base".Wallet}. */
+        /** Version of the feature implemented by the wallet. */
         readonly version: StandardEventsVersion;
-        /** Method to call to use the feature. */
+        /** Method to subscribe to wallet events. */
         readonly on: StandardEventsOnMethod;
     };
 };
-/**
- * @deprecated Use {@link StandardEventsFeature} instead.
- *
- * @group Deprecated
- */
-export type EventsFeature = StandardEventsFeature;
+
+// =============================================================================
+// EVENT SYSTEM TYPES
+// =============================================================================
 
 /**
- * Version of the {@link StandardEventsFeature} implemented by a {@link "@wallet-standard/base".Wallet}.
- *
- * @group Events
- */
-export type StandardEventsVersion = '1.0.0';
-/**
- * @deprecated Use {@link StandardEventsVersion} instead.
- *
- * @group Deprecated
- */
-export type EventsVersion = StandardEventsVersion;
-
-/**
- * Method to call to use the {@link StandardEventsFeature}.
- *
- * @param event    Event type to listen for. {@link StandardEventsListeners.change | `change`} is the only event type.
- * @param listener Function that will be called when an event of the type is emitted.
- *
- * @return
- * `off` function which may be called to remove the event listener and unsubscribe from events.
- *
- * As with all event listeners, be careful to avoid memory leaks.
- *
- * @group Events
+ * Method to subscribe to wallet events.
+ * 
+ * @param event - Event type to listen for. Currently only 'change' is supported.
+ * @param listener - Function that will be called when the event is emitted.
+ * @returns Unsubscribe function to remove the event listener.
+ * 
+ * @example
+ * ```typescript
+ * // Subscribe to wallet property changes
+ * const unsubscribe = wallet.features['standard:events'].on('change', (properties) => {
+ *   console.log('Wallet properties changed:', properties);
+ *   if (properties.accounts) {
+ *     console.log('Accounts updated:', properties.accounts);
+ *   }
+ * });
+ * 
+ * // Later, unsubscribe to prevent memory leaks
+ * unsubscribe();
+ * ```
+ * 
+ * @group Events Method
  */
 export type StandardEventsOnMethod = <E extends StandardEventsNames>(
     event: E,
     listener: StandardEventsListeners[E]
 ) => () => void;
+
+/**
+ * Event listener types for the standard events feature.
+ * 
+ * @group Events Listeners
+ */
+export interface StandardEventsListeners {
+    /**
+     * Listener for wallet property changes.
+     * 
+     * Called when properties of the wallet have changed. Only properties
+     * that have actually changed are included in the properties object.
+     * 
+     * @param properties - Properties that changed with their new values.
+     * 
+     * @example
+     * ```typescript
+     * const changeListener = (properties: StandardEventsChangeProperties) => {
+     *   if (properties.accounts) {
+     *     // Handle account changes
+     *     updateUI(properties.accounts);
+     *   }
+     *   if (properties.chains) {
+     *     // Handle chain changes
+     *     updateChainSupport(properties.chains);
+     *   }
+     * };
+     * ```
+     */
+    change(properties: StandardEventsChangeProperties): void;
+}
+
+/**
+ * Names of events that can be listened for.
+ * 
+ * @group Events Names
+ */
+export type StandardEventsNames = keyof StandardEventsListeners;
+
+/**
+ * Properties that can change on a wallet.
+ * 
+ * Only properties that have actually changed are included in change events.
+ * Each property contains the new value after the change.
+ * 
+ * @group Events Properties
+ */
+export interface StandardEventsChangeProperties {
+    /**
+     * Chains supported by the wallet.
+     * 
+     * Only included if the chains property has changed.
+     * Contains the new chains array.
+     * 
+     * @example
+     * ```typescript
+     * // Wallet now supports additional chains
+     * if (properties.chains) {
+     *   console.log('New supported chains:', properties.chains);
+     * }
+     * ```
+     */
+    readonly chains?: Wallet['chains'];
+    
+    /**
+     * Features supported by the wallet.
+     * 
+     * Only included if the features property has changed.
+     * Contains the new features object.
+     * 
+     * @example
+     * ```typescript
+     * // Wallet now supports new features
+     * if (properties.features) {
+     *   console.log('New supported features:', Object.keys(properties.features));
+     * }
+     * ```
+     */
+    readonly features?: Wallet['features'];
+    
+    /**
+     * Accounts that the app is authorized to use.
+     * 
+     * Only included if the accounts property has changed.
+     * Contains the new accounts array.
+     * 
+     * @example
+     * ```typescript
+     * // User connected/disconnected accounts
+     * if (properties.accounts) {
+     *   console.log('Account authorization changed:', properties.accounts.length);
+     * }
+     * ```
+     */
+    readonly accounts?: Wallet['accounts'];
+}
+
+// =============================================================================
+// DEPRECATED ALIASES
+// =============================================================================
+
+/**
+ * @deprecated Use {@link StandardEvents} instead.
+ * 
+ * Legacy feature identifier for backward compatibility.
+ * 
+ * @group Deprecated
+ */
+export const Events = StandardEvents;
+
+/**
+ * @deprecated Use {@link StandardEventsFeature} instead.
+ * 
+ * Legacy feature type for backward compatibility.
+ * 
+ * @group Deprecated
+ */
+export type EventsFeature = StandardEventsFeature;
+
+/**
+ * @deprecated Use {@link StandardEventsVersion} instead.
+ * 
+ * Legacy version type for backward compatibility.
+ * 
+ * @group Deprecated
+ */
+export type EventsVersion = StandardEventsVersion;
+
 /**
  * @deprecated Use {@link StandardEventsOnMethod} instead.
- *
+ * 
+ * Legacy method type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type EventsOnMethod = StandardEventsOnMethod;
 
 /**
- * Types of event listeners of the {@link StandardEventsFeature}.
- *
- * @group Events
- */
-export interface StandardEventsListeners {
-    /**
-     * Listener that will be called when {@link StandardEventsChangeProperties | properties} of the
-     * {@link "@wallet-standard/base".Wallet} have changed.
-     *
-     * @param properties Properties that changed with their **new** values.
-     */
-    change(properties: StandardEventsChangeProperties): void;
-}
-/**
  * @deprecated Use {@link StandardEventsListeners} instead.
- *
+ * 
+ * Legacy listeners type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type EventsListeners = StandardEventsListeners;
 
 /**
- * Names of {@link StandardEventsListeners} that can be listened for.
- *
- * @group Events
- */
-export type StandardEventsNames = keyof StandardEventsListeners;
-/**
  * @deprecated Use {@link StandardEventsNames} instead.
- *
+ * 
+ * Legacy names type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type EventsNames = StandardEventsNames;
 
 /**
- * Properties of a {@link "@wallet-standard/base".Wallet} that {@link StandardEventsListeners.change | changed} with their
- * **new** values.
- *
- * @group Events
- */
-export interface StandardEventsChangeProperties {
-    /**
-     * {@link "@wallet-standard/base".Wallet.chains | Chains} supported by the Wallet.
-     *
-     * The Wallet should only define this field if the value of the property has changed.
-     *
-     * The value must be the **new** value of the property.
-     */
-    readonly chains?: Wallet['chains'];
-    /**
-     * {@link "@wallet-standard/base".Wallet.features | Features} supported by the Wallet.
-     *
-     * The Wallet should only define this field if the value of the property has changed.
-     *
-     * The value must be the **new** value of the property.
-     */
-    readonly features?: Wallet['features'];
-    /**
-     * {@link "@wallet-standard/base".Wallet.accounts | Accounts} that the app is authorized to use.
-     *
-     * The Wallet should only define this field if the value of the property has changed.
-     *
-     * The value must be the **new** value of the property.
-     */
-    readonly accounts?: Wallet['accounts'];
-}
-/**
  * @deprecated Use {@link StandardEventsChangeProperties} instead.
- *
+ * 
+ * Legacy properties type for backward compatibility.
+ * 
  * @group Deprecated
  */
 export type EventsChangeProperties = StandardEventsChangeProperties;
