@@ -13,60 +13,60 @@ import type { ReadonlyUint8Array, WalletAccount } from '@wallet-standard/base';
  * @group Account
  */
 export class ReadonlyWalletAccount implements WalletAccount {
-    readonly #address: WalletAccount['address'];
-    readonly #publicKey: WalletAccount['publicKey'];
-    readonly #chains: WalletAccount['chains'];
-    readonly #features: WalletAccount['features'];
-    readonly #label: WalletAccount['label'];
-    readonly #icon: WalletAccount['icon'];
+	readonly #address: WalletAccount['address'];
+	readonly #publicKey: WalletAccount['publicKey'];
+	readonly #chains: WalletAccount['chains'];
+	readonly #features: WalletAccount['features'];
+	readonly #label: WalletAccount['label'];
+	readonly #icon: WalletAccount['icon'];
 
-    /** Implementation of {@link "@wallet-standard/base".WalletAccount.address | WalletAccount::address} */
-    get address() {
-        return this.#address;
-    }
+	/** Implementation of {@link "@wallet-standard/base".WalletAccount.address | WalletAccount::address} */
+	get address() {
+		return this.#address;
+	}
 
-    /** Implementation of {@link "@wallet-standard/base".WalletAccount.publicKey | WalletAccount::publicKey} */
-    get publicKey() {
-        return this.#publicKey.slice();
-    }
+	/** Implementation of {@link "@wallet-standard/base".WalletAccount.publicKey | WalletAccount::publicKey} */
+	get publicKey() {
+		return this.#publicKey.slice();
+	}
 
-    /** Implementation of {@link "@wallet-standard/base".WalletAccount.chains | WalletAccount::chains} */
-    get chains() {
-        return this.#chains.slice();
-    }
+	/** Implementation of {@link "@wallet-standard/base".WalletAccount.chains | WalletAccount::chains} */
+	get chains() {
+		return this.#chains.slice();
+	}
 
-    /** Implementation of {@link "@wallet-standard/base".WalletAccount.features | WalletAccount::features} */
-    get features() {
-        return this.#features.slice();
-    }
+	/** Implementation of {@link "@wallet-standard/base".WalletAccount.features | WalletAccount::features} */
+	get features() {
+		return this.#features.slice();
+	}
 
-    /** Implementation of {@link "@wallet-standard/base".WalletAccount.label | WalletAccount::label} */
-    get label() {
-        return this.#label;
-    }
+	/** Implementation of {@link "@wallet-standard/base".WalletAccount.label | WalletAccount::label} */
+	get label() {
+		return this.#label;
+	}
 
-    /** Implementation of {@link "@wallet-standard/base".WalletAccount.icon | WalletAccount::icon} */
-    get icon() {
-        return this.#icon;
-    }
+	/** Implementation of {@link "@wallet-standard/base".WalletAccount.icon | WalletAccount::icon} */
+	get icon() {
+		return this.#icon;
+	}
 
-    /**
-     * Create and freeze a read-only account.
-     *
-     * @param account Account to copy properties from.
-     */
-    constructor(account: WalletAccount) {
-        if (new.target === ReadonlyWalletAccount) {
-            Object.freeze(this);
-        }
+	/**
+	 * Create and freeze a read-only account.
+	 *
+	 * @param account Account to copy properties from.
+	 */
+	constructor(account: WalletAccount) {
+		this.#address = account.address;
+		this.#publicKey = account.publicKey.slice();
+		this.#chains = account.chains.slice();
+		this.#features = account.features.slice();
+		this.#label = account.label;
+		this.#icon = account.icon;
 
-        this.#address = account.address;
-        this.#publicKey = account.publicKey.slice();
-        this.#chains = account.chains.slice();
-        this.#features = account.features.slice();
-        this.#label = account.label;
-        this.#icon = account.icon;
-    }
+		if (new.target === ReadonlyWalletAccount) {
+			Object.freeze(this);
+		}
+	}
 }
 
 /**
@@ -80,16 +80,16 @@ export class ReadonlyWalletAccount implements WalletAccount {
  * @group Util
  */
 export function arraysEqual<T>(a: Indexed<T>, b: Indexed<T>): boolean {
-    if (a === b) return true;
+	if (a === b) return true;
 
-    const length = a.length;
-    if (length !== b.length) return false;
+	const length = a.length;
+	if (length !== b.length) return false;
 
-    for (let i = 0; i < length; i++) {
-        if (a[i] !== b[i]) return false;
-    }
+	for (let i = 0; i < length; i++) {
+		if (a[i] !== b[i]) return false;
+	}
 
-    return true;
+	return true;
 }
 
 /**
@@ -103,7 +103,7 @@ export function arraysEqual<T>(a: Indexed<T>, b: Indexed<T>): boolean {
  * @group Util
  */
 export function bytesEqual(a: ReadonlyUint8Array, b: ReadonlyUint8Array): boolean {
-    return arraysEqual(a, b);
+	return arraysEqual(a, b);
 }
 
 /**
@@ -117,15 +117,18 @@ export function bytesEqual(a: ReadonlyUint8Array, b: ReadonlyUint8Array): boolea
  * @group Util
  */
 export function concatBytes(first: ReadonlyUint8Array, ...others: ReadonlyUint8Array[]): Uint8Array {
-    const length = others.reduce((length, bytes) => length + bytes.length, first.length);
-    const bytes = new Uint8Array(length);
+	const totalLength = others.reduce((sum, bytes) => sum + bytes.length, first.length);
+	const concatenated = new Uint8Array(totalLength);
 
-    bytes.set(first, 0);
-    for (const other of others) {
-        bytes.set(other, bytes.length);
-    }
+	let offset = 0;
+	concatenated.set(first, offset);
+	offset += first.length;
+	for (const other of others) {
+		concatenated.set(other, offset);
+		offset += other.length;
+	}
 
-    return bytes;
+	return concatenated;
 }
 
 /**
@@ -139,11 +142,11 @@ export function concatBytes(first: ReadonlyUint8Array, ...others: ReadonlyUint8A
  * @group Util
  */
 export function pick<T, K extends keyof T>(source: T, ...keys: K[]): Pick<T, K> {
-    const picked = {} as Pick<T, K>;
-    for (const key of keys) {
-        picked[key] = source[key];
-    }
-    return picked;
+	const picked = {} as Pick<T, K>;
+	for (const key of keys) {
+		picked[key] = source[key];
+	}
+	return picked;
 }
 
 /**
@@ -154,11 +157,11 @@ export function pick<T, K extends keyof T>(source: T, ...keys: K[]): Pick<T, K> 
  * @group Util
  */
 export function guard(callback: () => void) {
-    try {
-        callback();
-    } catch (error) {
-        console.error(error);
-    }
+	try {
+		callback();
+	} catch (error) {
+		console.error(error);
+	}
 }
 
 /**
@@ -171,8 +174,8 @@ export function guard(callback: () => void) {
  * @group Internal
  */
 export interface Indexed<T> {
-    length: number;
-    [index: number]: T;
+	length: number;
+	[index: number]: T;
 }
 
 
@@ -187,18 +190,18 @@ export interface Indexed<T> {
  * @group Util
  */
 export function walletAccountsEqual(a?: WalletAccount, b?: WalletAccount): boolean {
-    if (!a && !b) {
-        return true;
-    }
-    if (!a || !b) {
-        return false;
-    }
-    return (
-        a.address === b.address &&
-        bytesEqual(a.publicKey, b.publicKey) &&
-        arraysEqual(a.chains, b.chains) &&
-        arraysEqual(a.features, b.features) &&
-        a.label === b.label &&
-        a.icon === b.icon
-    );
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.address === b.address &&
+		bytesEqual(a.publicKey, b.publicKey) &&
+		arraysEqual(a.chains, b.chains) &&
+		arraysEqual(a.features, b.features) &&
+		a.label === b.label &&
+		a.icon === b.icon
+	);
 }
